@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Muskoka Atlas — Lake Joseph</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #10242E; --ink-soft: #1B3540;
+    --parchment: #EFE8D8; --parchment-hi: #F8F4E8;
+    --brass: #B98A4B; --brass-hi: #D5A968;
+    --pine: #2F4A3C; --granite: #7C8386; --rumor: #A9532F;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--ink);font-family:'Inter', sans-serif;}
+
+  .topbar{
+    position:fixed; top:0; left:0; right:0; z-index:1000;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 28px;
+    background:linear-gradient(180deg, rgba(16,36,46,0.95) 0%, rgba(16,36,46,0.0) 100%);
+    pointer-events:none;
+  }
+  .topbar > *{pointer-events:auto;}
+  .wordmark{ font-family:'Instrument Serif', serif;  font-size:22px; letter-spacing:0.04em; color:var(--parchment-hi); display:flex; align-items:baseline; gap:10px; }
+  .wordmark small{ font-family:'IBM Plex Mono', monospace; font-weight:400; font-size:10px; letter-spacing:0.18em; color:var(--brass-hi); text-transform:uppercase; }
+  .lake-select{ display:flex; gap:6px; background:rgba(16,36,46,0.55); border:1px solid rgba(217,169,104,0.25); border-radius:100px; padding:4px; backdrop-filter:blur(6px); }
+  .lake-chip{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; padding:7px 16px; border-radius:100px; color:rgba(239,232,216,0.55); cursor:pointer; white-space:nowrap; transition:all .2s ease; border:none; background:none; }
+  .lake-chip.active{background:var(--brass); color:var(--ink); font-weight:500;}
+  .lake-chip.disabled{opacity:0.35; cursor:default;}
+  .lake-chip:not(.active):not(.disabled):hover{color:var(--parchment-hi);}
+
+  #map{position:absolute; inset:0;}
+  .leaflet-tile-pane{ filter: grayscale(0.85) sepia(0.35) brightness(0.92) contrast(1.05); }
+  .leaflet-control-zoom{display:none;}
+  .leaflet-control-attribution{ background:rgba(16,36,46,0.7) !important; color:rgba(239,232,216,0.4) !important; font-family:'IBM Plex Mono', monospace; font-size:9px !important; }
+  .leaflet-control-attribution a{color:rgba(217,169,104,0.6) !important;}
+  .vignette{ position:absolute; inset:0; z-index:400; pointer-events:none; background:radial-gradient(ellipse at center, transparent 45%, rgba(16,36,46,0.55) 100%); }
+
+  .pin{ width:16px; height:16px; border-radius:50%; background:var(--brass); border:2px solid var(--parchment-hi); box-shadow:0 0 0 3px rgba(185,138,75,0.25), 0 2px 6px rgba(0,0,0,0.4); cursor:pointer; transition:transform .18s ease, box-shadow .18s ease; }
+  .pin:hover{ transform:scale(1.35); box-shadow:0 0 0 6px rgba(185,138,75,0.3), 0 2px 8px rgba(0,0,0,0.5); }
+  .pin.rumored{ background:var(--rumor); }
+  .pin-label{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.05em; color:var(--parchment-hi); text-shadow:0 1px 4px rgba(16,36,46,0.9), 0 1px 2px rgba(16,36,46,1); white-space:nowrap; margin-top:6px; text-align:center; pointer-events:none; }
+
+  .drawer{ position:fixed; top:0; right:0; bottom:0; width:min(460px, 92vw); background:var(--parchment); z-index:2000; transform:translateX(100%); transition:transform .45s cubic-bezier(.16,1,.3,1); box-shadow:-20px 0 60px rgba(0,0,0,0.4); overflow-y:auto; }
+  .drawer.open{transform:translateX(0);}
+  .drawer-inner{padding:38px 34px 60px; position:relative;}
+  .drawer-close{ position:absolute; top:20px; right:24px; font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.1em; background:none; border:1px solid rgba(16,36,46,0.25); color:var(--ink); padding:8px 14px; border-radius:100px; cursor:pointer; }
+  .drawer-close:hover{background:rgba(16,36,46,0.08);}
+  .eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--pine); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--pine);}
+  .eyebrow.rumored{color:var(--rumor);} .eyebrow.rumored .dot{background:var(--rumor);}
+  .drawer h1{ font-family:'Instrument Serif', serif;  font-size:34px; line-height:1.1; margin:0 0 4px; color:var(--ink); }
+  .drawer .sub{ font-size:14px; color:var(--granite); font-style:italic; margin-bottom:20px;}
+  .stat-row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:16px 0; border-top:1px solid rgba(16,36,46,0.12); border-bottom:1px solid rgba(16,36,46,0.12); margin-bottom:22px; }
+  .stat label{display:block; font-family:'IBM Plex Mono', monospace; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--granite); margin-bottom:4px;}
+  .stat span{font-size:15px; color:var(--ink);}
+  .drawer p.body{font-size:15px; line-height:1.65; color:var(--ink-soft); margin:0 0 14px;}
+  .source-tag{ display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:9.5px; color:var(--granite); border-top:1px dashed rgba(16,36,46,0.2); padding-top:12px; margin-top:4px; }
+
+  /* media gallery */
+  .media-embed{ margin-bottom:12px; border-radius:10px; overflow:hidden; background:#fff; border:1px solid rgba(16,36,46,0.12); }
+  .media-embed .instagram-media{ margin:0 !important; min-width:auto !important; }
+  .media-fallback{ position:relative; border-radius:10px; overflow:hidden; background:linear-gradient(135deg, #2F4A3C 0%, #10242E 100%); min-height:150px; display:flex; flex-direction:column; justify-content:flex-end; padding:14px; text-decoration:none; }
+  .media-fallback::before{ content:''; position:absolute; inset:0; background:repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0 8px, transparent 8px 16px); }
+  .media-caption{ position:relative; z-index:2; font-size:12.5px; color:var(--parchment-hi); line-height:1.35; margin-bottom:4px; }
+  .media-credit{ position:relative; z-index:2; font-family:'IBM Plex Mono', monospace; font-size:9.5px; color:var(--brass-hi); }
+  .media-flag{ display:inline-block; margin-top:8px; font-family:'IBM Plex Mono', monospace; font-size:9px; letter-spacing:0.05em; text-transform:uppercase; padding:3px 8px; border-radius:100px; background:rgba(169,83,47,0.15); color:var(--rumor); }
+  .media-license{ font-family:'IBM Plex Mono', monospace; font-size:8.5px; letter-spacing:0.03em; color:var(--granite); margin:4px 0 12px; }
+  .contrib-bar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:2px 0 12px; padding:8px 12px; background:rgba(16,36,46,0.04); border-radius:8px; }
+  .contrib-name{ font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--granite); }
+  .contrib-name b{ color:var(--ink); }
+  .contrib-toggle{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.04em; text-transform:uppercase; border:1px solid rgba(16,36,46,0.25); background:var(--parchment-hi); color:var(--ink); padding:5px 10px; border-radius:6px; cursor:pointer; }
+  .contrib-toggle:hover{ background:rgba(16,36,46,0.06); }
+  .contrib-hidden-note{ font-size:12px; color:var(--granite); font-style:italic; padding:12px; border:1px dashed rgba(16,36,46,0.2); border-radius:8px; }
+
+  .section-heading{ font-family:'Instrument Serif', serif;  font-size:17px; color:var(--ink); margin:32px 0 14px; display:flex; align-items:center; justify-content:space-between; }
+  .section-heading span.count{ font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--granite); font-weight:400; }
+
+  /* timeline */
+  .timeline{ position:relative; padding-left:20px; border-left:2px solid rgba(16,36,46,0.15); }
+  .tl-item{ position:relative; padding-bottom:20px; }
+  .tl-item:last-child{padding-bottom:0;}
+  .tl-item::before{ content:''; position:absolute; left:-25px; top:3px; width:9px; height:9px; border-radius:50%; background:var(--pine); border:2px solid var(--parchment); }
+  .tl-item.rumored::before{ background:var(--rumor); }
+  .tl-date{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.05em; color:var(--brass); text-transform:uppercase; margin-bottom:3px; }
+  .tl-title{ font-weight:600; font-size:14.5px; color:var(--ink); margin-bottom:3px; }
+  .tl-body{ font-size:13.5px; line-height:1.55; color:var(--ink-soft); margin-bottom:5px; }
+  .tl-source{ font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--granite); }
+
+  /* collapsible timeline */
+  .timeline-details{ margin-top:34px; border-top:1px solid rgba(16,36,46,0.12); }
+  .timeline-summary{ cursor:pointer; list-style:none; margin:18px 0 14px; }
+  .timeline-summary::-webkit-details-marker{ display:none; }
+  .timeline-details .chev{ font-size:12px; color:var(--granite); transition:transform .2s ease; }
+  .timeline-details[open] .chev{ transform:rotate(180deg); }
+  .btn.full-width{ width:100%; margin-bottom:14px; }
+
+  /* community / stories */
+  .rank-note{ font-size:11.5px; line-height:1.5; color:var(--granite); font-style:italic; margin-bottom:14px; padding:10px 12px; background:rgba(185,138,75,0.08); border-radius:8px; }
+  .community-item{ border-top:1px solid rgba(16,36,46,0.1); padding:14px 0; }
+  .community-item:first-of-type{ border-top:none; }
+  .ci-layout{ display:flex; gap:12px; }
+  .vote-col{ display:flex; flex-direction:column; align-items:center; gap:3px; min-width:32px; padding-top:2px; }
+  .ci-main{ flex:1; min-width:0; }
+  .ci-rankline{ display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; }
+  .ci-rank{ font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--granite); }
+  .ci-tag{ display:inline-block; font-family:'IBM Plex Mono', monospace; font-size:8.5px; letter-spacing:0.05em; text-transform:uppercase; padding:2px 8px; border-radius:100px; background:var(--pine); color:var(--parchment-hi); }
+  .ci-fresh{ font-family:'IBM Plex Mono', monospace; font-size:8.5px; letter-spacing:0.04em; text-transform:uppercase; padding:2px 8px; border-radius:100px; background:rgba(185,138,75,0.18); color:var(--brass); }
+  .ci-title{ font-weight:600; font-size:14.5px; color:var(--ink); margin-bottom:3px; line-height:1.3;}
+  .ci-body{ font-size:13px; line-height:1.55; color:var(--ink-soft); margin-bottom:6px;}
+  .ci-source{ font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--granite); margin-bottom:6px; display:block;}
+  .ci-meta{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; color:var(--granite); text-transform:uppercase; letter-spacing:0.04em; }
+  .vote-btn{ border:1px solid rgba(16,36,46,0.2); background:var(--parchment-hi); border-radius:6px; width:26px; height:24px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:var(--ink); user-select:none; padding:0; }
+  .vote-btn.active-up{ background:var(--pine); color:var(--parchment-hi); border-color:var(--pine); }
+  .vote-btn.active-down{ background:var(--rumor); color:var(--parchment-hi); border-color:var(--rumor); }
+  .vote-score{ font-family:'IBM Plex Mono', monospace; font-size:13px; font-weight:500; color:var(--ink); min-width:18px; text-align:center;}
+  .empty-note{ font-size:13px; color:var(--granite); font-style:italic; margin-bottom:10px;}
+
+  .cta-row{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+  .btn{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.06em; padding:12px 18px; border-radius:6px; cursor:pointer; border:none; text-transform:uppercase; }
+  .btn.primary{background:var(--ink); color:var(--parchment-hi);}
+  .btn.primary:hover{background:var(--ink-soft);}
+  .btn.ghost{background:transparent; border:1px solid rgba(16,36,46,0.3); color:var(--ink);}
+  .btn.ghost:hover{background:rgba(16,36,46,0.06);}
+  .btn.small{padding:8px 14px; font-size:10px;}
+
+  /* submission form */
+  .sub-form{ margin-top:14px; border:1px dashed rgba(16,36,46,0.25); border-radius:10px; padding:16px; display:none; }
+  .sub-form.open{display:block;}
+  .sub-form label{ display:block; font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--granite); margin:10px 0 4px;}
+  .sub-form label:first-child{margin-top:0;}
+  .sub-form input, .sub-form select, .sub-form textarea{ width:100%; padding:9px 10px; border:1px solid rgba(16,36,46,0.25); border-radius:6px; font-family:'Inter', sans-serif; font-size:13.5px; background:var(--parchment-hi); color:var(--ink); resize:vertical; }
+  .sub-form textarea{min-height:70px;}
+  .form-msg{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; margin-top:8px; }
+  .form-msg.ok{color:var(--pine);} .form-msg.err{color:var(--rumor);}
+
+  /* image attachment */
+  .sub-form input[type="file"]{ padding:8px; font-family:'IBM Plex Mono', monospace; font-size:11px; cursor:pointer; }
+  .img-preview-wrap{ margin-top:8px; }
+  .img-preview{ width:100%; border-radius:8px; display:block; border:1px solid rgba(16,36,46,0.15); }
+  .img-remove{ margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:0.05em; background:none; border:1px solid rgba(16,36,46,0.25); color:var(--ink); padding:5px 10px; border-radius:6px; cursor:pointer; }
+  .img-status{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--granite); padding:6px 0; }
+  .img-status.err{ color:var(--rumor); }
+  .checkbox-label{ display:flex !important; align-items:flex-start; gap:8px; margin-top:12px !important; text-transform:none !important; letter-spacing:0 !important; font-family:'Inter', sans-serif !important; font-size:11.5px !important; line-height:1.45; color:var(--ink-soft) !important; cursor:pointer; }
+  .checkbox-label input[type="checkbox"]{ width:auto !important; margin:2px 0 0 0; flex-shrink:0; cursor:pointer; }
+  .ci-image{ width:100%; border-radius:8px; margin:6px 0 8px; display:block; border:1px solid rgba(16,36,46,0.12); }
+
+  .intro{ position:fixed; left:28px; bottom:28px; z-index:900; max-width:280px; background:rgba(16,36,46,0.6); border:1px solid rgba(217,169,104,0.2); backdrop-filter:blur(6px); border-radius:12px; padding:18px 20px; color:var(--parchment-hi); }
+  .intro .eyebrow{color:var(--brass-hi);} .intro .eyebrow .dot{background:var(--brass-hi);}
+  .intro h2{font-family:'Instrument Serif', serif; font-size:17px;  margin:0 0 6px;}
+  .intro p{font-size:12.5px; line-height:1.5; color:rgba(239,232,216,0.75); margin:0;}
+  .legend{ position:fixed; right:28px; bottom:28px; z-index:900; display:flex; flex-direction:column; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.05em; color:rgba(239,232,216,0.65); }
+  .legend .row{display:flex; align-items:center; gap:8px;}
+  .legend .swatch{width:9px;height:9px;border-radius:50%;}
+
+  @media (max-width:640px){ .lake-select{display:none;} .intro{display:none;} }
+
+  /* ---- full property article view ---- */
+  .article-view{ position:fixed; inset:0; z-index:1500; background:var(--parchment); overflow-y:auto; }
+  .article-masthead{ position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:18px; padding:16px 28px; background:rgba(239,232,216,0.92); backdrop-filter:blur(6px); border-bottom:1px solid rgba(16,36,46,0.12); }
+  .article-back-btn{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.06em; background:none; border:1px solid rgba(16,36,46,0.25); color:var(--ink); padding:8px 14px; border-radius:100px; cursor:pointer; white-space:nowrap; }
+  .article-back-btn:hover{ background:rgba(16,36,46,0.06); }
+  .article-breadcrumb{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.04em; color:var(--granite); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .article-breadcrumb .crumb-sep{ margin:0 6px; color:rgba(124,131,134,0.6); }
+
+  .article-body{ max-width:1100px; margin:0 auto; padding:36px 28px 80px; display:grid; grid-template-columns:1fr 300px; gap:48px; align-items:start; }
+  .article-main{ min-width:0; }
+  .article-title{ font-family:'Instrument Serif', serif; font-size:46px; line-height:1.05; margin:0 0 6px; color:var(--ink); }
+  .article-subhead{ font-size:16px; margin-bottom:24px; }
+  .article-section{ margin-bottom:8px; scroll-margin-top:80px; }
+  .article-footer-note{ margin-top:40px; padding-top:18px; border-top:1px solid rgba(16,36,46,0.12); font-size:12px; font-style:italic; color:var(--granite); line-height:1.5; }
+
+  .article-aside{ position:sticky; top:76px; max-height:calc(100vh - 96px); overflow-y:auto; display:flex; flex-direction:column; gap:20px; }
+  .toc{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; background:rgba(16,36,46,0.04); border-radius:10px; padding:16px 18px; }
+  .toc-title{ text-transform:uppercase; letter-spacing:0.1em; font-size:10px; color:var(--granite); margin-bottom:10px; }
+  .toc ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .toc a{ color:var(--ink-soft); text-decoration:none; }
+  .toc a:hover{ color:var(--pine); }
+  .toc-mobile{ display:none; }
+
+  .infobox{ border:1px solid rgba(16,36,46,0.15); border-radius:12px; background:var(--parchment-hi); overflow:hidden; }
+  .infobox-hero{ margin:0; border-radius:0; border:none; border-bottom:1px solid rgba(16,36,46,0.12); min-height:120px; }
+  .infobox-row{ display:flex; flex-direction:column; gap:2px; padding:10px 16px; border-top:1px solid rgba(16,36,46,0.08); }
+  .infobox-row:first-of-type{ border-top:none; }
+  .infobox-row label{ font-family:'IBM Plex Mono', monospace; font-size:9px; letter-spacing:0.08em; text-transform:uppercase; color:var(--granite); }
+  .infobox-row span{ font-size:13.5px; color:var(--ink); }
+  .infobox .view-on-map-btn{ margin:14px 16px 16px; width:calc(100% - 32px); }
+
+  .media-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:14px; }
+  .media-grid .media-embed, .media-grid .media-fallback{ margin-bottom:0; }
+  .media-grid .contrib-bar{ grid-column:1/-1; }
+
+  .ref-list{ padding-left:20px; font-size:12.5px; line-height:1.8; color:var(--ink-soft); }
+  .ref-list li{ margin-bottom:4px; }
+
+  .related-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:12px; }
+  .related-card{ display:block; padding:14px 16px; border:1px solid rgba(16,36,46,0.15); border-radius:10px; text-decoration:none; background:var(--parchment-hi); transition:border-color .15s ease; }
+  .related-card:hover{ border-color:var(--brass); }
+  .related-name{ font-weight:600; font-size:14px; color:var(--ink); margin-bottom:3px; }
+  .related-dist{ font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--granite); }
+
+  @media (max-width:900px){
+    .article-body{ grid-template-columns:1fr; }
+    .toc-desktop{ display:none; }
+    .toc-mobile{ display:block; margin-bottom:24px; }
+    .toc-mobile summary{ cursor:pointer; font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink); list-style:none; padding:12px 16px; background:rgba(16,36,46,0.04); border-radius:10px; }
+    .toc-mobile summary::-webkit-details-marker{ display:none; }
+    .toc-mobile .toc{ margin-top:8px; }
+    .article-aside{ position:static; }
+    .article-title{ font-size:34px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div class="vignette"></div>
+
+<div class="topbar">
+  <div class="wordmark">MUSKOKA ATLAS <small>a crowdsourced record of the lakes</small></div>
+  <div class="lake-select">
+    <button class="lake-chip" data-lake="joseph">Lake Joseph</button>
+    <button class="lake-chip" data-lake="rosseau">Lake Rosseau</button>
+    <button class="lake-chip" data-lake="muskoka">Lake Muskoka</button>
+  </div>
+</div>
+
+<div class="intro">
+  <div class="eyebrow" id="introEyebrow"><span class="dot"></span>Seed collection · eleven pins</div>
+  <h2 id="introHeading">Lake Joseph, Muskoka</h2>
+  <p>Tap a marker to open its record. Every entry shows where it came from — a published source, or a member submission. Nothing here is a claim of truth; it's a claim about provenance.</p>
+</div>
+
+<div class="legend">
+  <div class="row"><span class="swatch" style="background:#B98A4B"></span>Published source attached</div>
+  <div class="row"><span class="swatch" style="background:#A9532F"></span>No source / self-reported</div>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="drawer-inner">
+    <button class="drawer-close" id="drawerClose">CLOSE ✕</button>
+    <div id="drawerContent"></div>
+  </div>
+</div>
+
+<div class="article-view" id="articleView" style="display:none;"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+  // ---- seed data: coordinates verified via place lookup, facts sourced from public listings/reporting ----
+  const properties = [
+    {
+      id: "fawn-island",
+      lake: "joseph",
+      name: "Fawn Island",
+      lat: 45.1479, lng: -79.6863,
+      status: "verified",
+      era: "Listed 2023–2025",
+      price: "$32.5M orig. ask",
+      sub: "Private compound, central Lake Joseph, Medora",
+      body: "A private island estate spanning roughly 2,300 feet of shoreline across 2.9 acres, built around a main lodge with granite floors and a separate glass-walled guest house at the island's south tip, plus a converted boathouse (\u201cThe Canoe House\u201d) and two boathouse guest wings. The listing includes neighbouring Birch Islet and a private mainland parking/boat slip at Stills Bay Landing. It was the first time the property had reached the open market.",
+      source: "storeys.com · village-life.ca · zolo.ca",
+      timeline: [
+        { date: "2023-07", title: "First listed for sale", body: "Listed at $32.5M — the first time the estate had ever come to open market, per brokerage coverage.", source: "storeys.com, village-life.ca", rumored:false },
+        { date: "2025-03-15", title: "Re-listed at reduced ask", body: "Listing aggregator shows the property back on market at $19.95M ask; annual property tax on file at roughly $45,255.", source: "zolo.ca listing history", rumored:false },
+        { date: "2025-07-27", title: "Taken off market", body: "Listing marked inactive. No public confirmation yet of a completed sale or final price — flagged pending.", source: "zolo.ca listing history", rumored:true }
+      ]
+    },
+    {
+      id: "caniff-island",
+      lake: "joseph",
+      name: "Caniff Island",
+      lat: 45.1482, lng: -79.7018,
+      status: "rumored",
+      era: "Current owner: Patrick Dovigi",
+      price: "Rumored ~$100M build",
+      sub: "Private island, central Lake Joseph",
+      body: "Owned by waste-management entrepreneur Patrick Dovigi, who has built a series of contemporary structures on the island with his wife, designer Fernanda Dovigi, including a staff house that sleeps eleven. Reporting describes him having built and sold other Lake Joseph homes in the past, including one near a cottage owned by Cindy Crawford and Rande Gerber. The widely cited ~$100M project figure is a reported estimate — treat it as unconfirmed until a primary source (permit filing, sale record) surfaces.",
+      source: "WSJ profile, Aug 2025 — reported estimate, unconfirmed",
+      media: [
+        { tier: "link", contributor: "edboutilier", credit: "Ed Boutilier (@edboutilier)", caption: "Ed has posts of Caniff on Instagram — map the exact post here", url: "https://www.instagram.com/edboutilier/", confirmed: false, licenseNote: "Instagram content — attribution required; confirm specific post" }
+      ],
+      timeline: [
+        { date: "2025-08", title: "WSJ profile publishes", body: "Wall Street Journal feature profiles Dovigi's real-estate holdings, describing Caniff Island as his current Muskoka base and prior Lake Joseph builds he sold.", source: "WSJ, Aug 2025", rumored:false },
+        { date: "undated", title: "~$100M project figure circulates", body: "Widely repeated estimate of build cost / project value. No primary source located confirming this figure — logged here as a tracked rumor, not fact.", source: "unconfirmed / secondary reporting", rumored:true }
+      ]
+    },
+    {
+      id: "elsinore-island",
+      lake: "joseph",
+      name: "Elsinore Island",
+      lat: 45.15929, lng: -79.72318,
+      status: "verified",
+      era: "Patented, late 1800s",
+      price: "First sale in 35+ yrs",
+      sub: "Only its 2nd family in over a century",
+      body: "Originally a Crown-patented island dating to the late 1800s, Elsinore has had only two owning families across more than a century of summers — a rarity even by Lake Joseph standards — and has reached the open market for the first time in over 35 years. A published 2024 obituary for John William Grand confirms a real family tie: Grand worked at his family's business, Grand & Toy, running its Furniture and Design divisions as Vice President until retiring in 1987, and married his husband David on Elsinore Island in 2009. The obituary describes Grand & Toy as \u201chis family's business\u201d but does not state that John Grand himself founded it — he served as VP of two divisions, so a founder connection more likely sits a generation earlier. A further claim that the current owner is J. Michael Evans, described as head of \u201cAlibaba Canada,\u201d remains unconfirmed — see timeline.",
+      source: "legacy.com/theglobeandmail — John Grand obituary, Nov. 2024",
+      media: [
+        { tier: "link", contributor: "edboutilier", credit: "Ed Boutilier (@edboutilier)", caption: "Ed has aerial posts of Elsinore on Instagram — map the exact post here", url: "https://www.instagram.com/edboutilier/", confirmed: false, licenseNote: "Instagram content — attribution required; confirm specific post" }
+      ],
+      timeline: [
+        { date: "late 1800s", title: "Original Crown patent", body: "Island originally patented as Crown land, per brokerage listing copy describing its century-plus ownership history.", source: "waterfront-muskoka.com", rumored:false },
+        { date: "2009", title: "Grand family wedding on the island", body: "John William Grand married his husband David on Elsinore Island — direct, dated evidence the Grand family held and used the property.", source: "legacy.com obituary, published Nov. 23\u201327, 2024", rumored:false },
+        { date: "\u2264 1987", title: "Grand family ran Grand & Toy's Furniture & Design divisions", body: "John Grand worked at \u201chis family's business, Grand & Toy,\u201d serving as Vice President of the Furniture and Design divisions until retiring in 1987. This confirms a Grand family connection to the company, though the obituary does not identify John Grand himself as its founder.", source: "legacy.com obituary, Nov. 2024", rumored:false },
+        { date: "2024-11-18", title: "John Grand passes away", body: "Age 84. A celebration of life was planned in Muskoka for the following summer.", source: "legacy.com obituary, Nov. 2024", rumored:false },
+        { date: "~1990", title: "Property changes hands (2nd family)", body: "Listing describes the current sale as the first time on the open market in over 35 years — consistent with, though not itself proof of, the Grand family's tenure ending around this period.", source: "waterfront-muskoka.com", rumored:true },
+        { date: "2026-03-13", title: "Reported current owner: John (J. Michael) Evans", body: "Per an Ontario Reports item (Law Society of Ontario / LexisNexis, the official provincial case reporter, March 13, 2026), the current owner is reported to be J. Michael \u201cJohn\u201d Evans. Bio: Toronto-born, b. 1957; President of Alibaba Group since 2015, leading its international strategy outside China; former Vice Chairman of Goldman Sachs (1993\u20132013); Olympic gold medallist in rowing for Canada at the 1984 Los Angeles Games. Flagged rumored here because the source article's exact wording hasn't been independently confirmed in this record \u2014 the citation is attached so a reader can verify it directly. Note: he leads Alibaba globally; there is no separate \u201cAlibaba Canada\u201d division under that title.", source: "Ontario Reports, Mar. 13 2026 \u2014 digital.ontarioreports.ca (articleId 2115853)", rumored:true }
+      ]
+    },
+    {
+      id: "sherwood-inn",
+      lake: "joseph",
+      name: "Sherwood Inn",
+      lat: 45.10667, lng: -79.64680,
+      status: "verified",
+      era: "Est. 1939",
+      price: "Landmark resort",
+      sub: "1090 Sherwood Rd, Muskoka Lakes",
+      body: "One of Lake Joseph's oldest hospitality landmarks, operating continuously since 1939 as a country-style inn with lakeside cottages. Now operated by ClubLink as part of its Muskoka resort portfolio. A fuller ownership-transition history (pre-ClubLink era, founding family) is flagged as a strong candidate for a curated deep-dive once sourced against local historical-society records.",
+      source: "US News Travel · sherwoodinn.ca",
+      timeline: [
+        { date: "1939", title: "Inn established", body: "Sherwood Inn opens on the shore of Lake Joseph as a country-style inn; reporting on the founding ownership predates readily available online sourcing.", source: "US News Travel, sherwoodinn.ca", rumored:false },
+        { date: "present", title: "Operated by ClubLink", body: "Currently run as part of ClubLink's Muskoka resort group, alongside golf and event operations.", source: "sherwoodinn.ca", rumored:false }
+      ]
+    },
+    {
+      id: "rockycrest",
+      lake: "joseph",
+      name: "RockyCrest",
+      lat: 45.23217, lng: -79.77665,
+      status: "verified",
+      era: "Resort era",
+      price: "Landmark resort",
+      sub: "Hamer Bay, Seguin — Lake Joseph",
+      body: "A landmark golf resort on Lake Joseph's Hamer Bay, consistently ranked among Canada's top courses, paired with a lakefront hotel and condo-style suites. Ownership history and the resort's original development story are marked for a full curated writeup — not yet sourced to a verified primary account.",
+      source: "Pending — flagged for verification",
+      timeline: [
+        { date: "pending", title: "Founding & ownership history not yet sourced", body: "No verified public record located yet for original development date or ownership transitions. Placeholder — first candidate for member research once submissions open.", source: "unsourced", rumored:true }
+      ]
+    },
+    {
+      id: "birch-islet",
+      lake: "joseph",
+      name: "Birch Islet",
+      lat: 45.14702, lng: -79.68602,
+      status: "verified",
+      era: "Tied to Fawn Island",
+      price: "Included in Fawn Is. sale",
+      sub: "Immediately south of Fawn Island",
+      body: "A smaller picnic-and-camping islet bundled into the Fawn Island listing, sitting just south of the main compound. Its inclusion was one of the details brokers highlighted as adding to the estate's rarity.",
+      source: "storeys.com · village-life.ca",
+      timeline: [
+        { date: "2023-07", title: "Included in Fawn Island listing", body: "Marketed as part of the same offering as Fawn Island, described as a romantic picnic/camping islet.", source: "storeys.com", rumored:false }
+      ]
+    },
+    {
+      id: "governors-island",
+      lake: "joseph",
+      name: "Governors Island",
+      lat: 45.16119, lng: -79.71807,
+      status: "verified",
+      era: "Hamlin family, 20th c.",
+      price: "Being subdivided",
+      sub: "Lake Joseph — a racing-era estate",
+      body: "Once owned by Chauncey Jerome Hamlin (1881–1963), a figure from Muskoka's early boat-racing era who traded racing trophies with the Forman family of nearby Eagle Island. The island passed down through the family to his grandson, actor Harry Hamlin (of L.A. Law and Mad Men), who with his family — including actor Lisa Rinna — has in recent years sold off pieces of the large island, reportedly amid rising waterfront property taxes.",
+      source: "muskokablog.com — Ed Boutilier, June 2 2021",
+      media: [
+        { tier: "embed", contributor: "edboutilier", credit: "Ed Boutilier (muskokablog.com)", caption: "Governors Island, Lake Joseph", url: "https://www.muskokablog.com/2021/06/02/governors-island-on-lake-joseph/", confirmed: true, licenseNote: "CC BY-NC-ND 3.0 — non-commercial use only, no edits" }
+      ],
+      timeline: [
+        { date: "1881–1963", title: "Chauncey Jerome Hamlin era", body: "Owned by C.J. Hamlin, who shared boat-racing trophies with the Forman family of Eagle Island during Muskoka's early racing years.", source: "muskokablog.com, June 2021", rumored:false },
+        { date: "recent years", title: "Estate being subdivided", body: "Grandson Harry Hamlin and family reported to be selling off portions of the island, per Ed Boutilier's observation, likely due to rising waterfront taxes.", source: "muskokablog.com, June 2021", rumored:false }
+      ]
+    },
+    {
+      id: "cliff-island",
+      lake: "joseph",
+      name: "Cliff Island",
+      lat: 45.18229, lng: -79.70303,
+      status: "verified",
+      era: "Same family 100+ yrs",
+      price: "Documentary subject",
+      sub: "Lake Joseph — an American century",
+      body: "Owned by the same American family for well over a century of summers — a striking example of Muskoka's multi-generational cottage tradition. The family and their perspective on the lake's rapid change are the subject of the documentary “An American in Muskoka.” One of the most-photographed and admired properties on the lake, per two decades of Ed Boutilier's boat-level documentation.",
+      source: "muskokablog.com — Ed Boutilier, May 6 2021",
+      media: [
+        { tier: "embed", contributor: "edboutilier", credit: "Ed Boutilier (muskokablog.com)", caption: "Cliff Island, Lake Joseph", url: "https://www.muskokablog.com/2021/05/06/cliff-island-lake-joseph-muskoka-canada/", confirmed: true, licenseNote: "CC BY-NC-ND 3.0 — non-commercial use only, no edits" }
+      ],
+      timeline: [
+        { date: "100+ years", title: "Continuous American family ownership", body: "Same American family has summered on the island for well over 100 years, per Ed Boutilier's account.", source: "muskokablog.com, May 2021", rumored:false },
+        { date: "mid-2000s", title: "Subject of “An American in Muskoka”", body: "A 76-minute documentary about the family and Muskoka's changes; features interviews with Harry Hamlin and Kevin O'Leary among others.", source: "muskokablog.com — film feature", rumored:false }
+      ]
+    },
+    {
+      id: "joe-river-marina",
+      lake: "joseph",
+      name: "Joseph River Marina",
+      lat: 45.1385, lng: -79.7175,
+      status: "verified",
+      era: "Waters Marina, 1972–2010",
+      price: "Family-run, now sold",
+      sub: "Joseph River (coordinate approximate)",
+      body: "Originally named Waters Marina, purchased by Joerg Rosenthal and his new bride Marilyn in 1972. The couple ran it, were active in the community, and raised four daughters on site — one of the last families to operate a business on the big-lake waterfront. Joerg died in a Lake Joe accident in 2007 and Marilyn of cancer in 2009; the daughters auctioned everything in July 2010 and left Muskoka. The property was bought by islanders who rebuilt the boathouse and restored the house.",
+      source: "muskokablog.com — Ed Boutilier, June 15 2021",
+      media: [
+        { tier: "embed", contributor: "edboutilier", credit: "Ed Boutilier (muskokablog.com)", caption: "Remembering the Joe River Marina", url: "https://www.muskokablog.com/2021/06/15/remembering-the-joe-river-marina/", confirmed: true, licenseNote: "CC BY-NC-ND 3.0 — non-commercial use only, no edits" }
+      ],
+      timeline: [
+        { date: "1972", title: "Rosenthals buy Waters Marina", body: "Joerg and Marilyn Rosenthal purchase the marina, rename it, and begin raising their family on site.", source: "muskokablog.com, June 2021", rumored:false },
+        { date: "2007", title: "Joerg Rosenthal dies", body: "Joerg perished in an accident on Lake Joseph.", source: "muskokablog.com, June 2021", rumored:false },
+        { date: "2009", title: "Marilyn Rosenthal dies", body: "Marilyn passed away from cancer.", source: "muskokablog.com, June 2021", rumored:false },
+        { date: "2010-07", title: "Auction and sale", body: "The daughters auctioned everything in July 2010; the marina and home were sold to islanders who later rebuilt the boathouse and fixed up the house.", source: "muskokablog.com, June 2021", rumored:false }
+      ]
+    },
+    {
+      id: "cameron-island",
+      lake: "joseph",
+      name: "Cameron Island Boathouse",
+      lat: 45.16808, lng: -79.72012,
+      status: "verified",
+      era: "Listed 2010",
+      price: "~$3M (2010)",
+      sub: "Lake Joseph — architectural boathouse",
+      body: "Noted by Ed Boutilier for the symmetry of its boathouse, one of the lake's photogenic pieces of waterfront architecture. Recalled as being for sale in 2010 for under $3M — a figure that, per his commentary, likely more than doubled through the Muskoka real-estate run-up of the early 2020s.",
+      source: "muskokablog.com — Ed Boutilier, May 27 2021",
+      media: [
+        { tier: "embed", contributor: "edboutilier", credit: "Ed Boutilier (muskokablog.com)", caption: "Cameron Island Boathouse", url: "https://www.muskokablog.com/2021/05/27/cameron-island-boathouse/", confirmed: true, licenseNote: "CC BY-NC-ND 3.0 — non-commercial use only, no edits" }
+      ],
+      timeline: [
+        { date: "2010", title: "Listed for sale", body: "On the market for under $3M, per Ed Boutilier's recollection.", source: "muskokablog.com, May 2021", rumored:true }
+      ]
+    },
+    {
+      id: "stills-bay",
+      lake: "joseph",
+      name: "Stills Bay Landing",
+      lat: 45.12397, lng: -79.71064,
+      status: "verified",
+      era: "Private facility",
+      price: "Members' access point",
+      sub: "Mainland, Muskoka Lakes",
+      body: "A members-only private docking facility on the mainland used by several island properties, including Fawn Island, to reach the water — a recurring detail in listings for islands that lack their own mainland road access.",
+      source: "storeys.com · village-life.ca",
+      timeline: [
+        { date: "undated", title: "Serves as mainland access for island estates", body: "Referenced across multiple Fawn Island listings as the included parking/boat-slip facility.", source: "storeys.com, village-life.ca", rumored:false }
+      ]
+    },
+    {
+      id: "windermere-house",
+      lake: "rosseau",
+      name: "Windermere House",
+      lat: 45.1644, lng: -79.5497,
+      status: "verified",
+      era: "Est. 1870",
+      price: "Rebuilt after 1996 fire",
+      sub: "Lake Rosseau's oldest continuously run resort",
+      body: "Founded by Thomas Aitken, a Shetland Islands immigrant who took up land near the mouth of the Dee River in 1863 and began accepting guests into his home around 1872. The operation grew into a hotel and adopted the name “Windermere House” by the mid-1880s, staying in Aitken family hands until 1981. On February 27, 1996, a fire broke out during filming of the Hollywood thriller The Long Kiss Goodnight, destroying the 127-year-old building down to its stone veranda. It was rebuilt to its original design and reopened the following year.",
+      source: "en.wikipedia.org — Windermere House, Ontario · Ontario Heritage Trust",
+      timeline: [
+        { date: "1863", title: "Thomas Aitken takes up land near Windermere", body: "Aitken, an immigrant from the Shetland Islands, acquires land near the mouth of the Dee River on Lake Rosseau.", source: "Ontario Heritage Trust, provincial plaque background paper", rumored:false },
+        { date: "1870", title: "Aitken becomes postmaster; guest lodging begins", body: "The Windermere post office relocates to Aitken's home; he begins taking in guests, planting the seed of the resort.", source: "Ontario Heritage Trust; en.wikipedia.org", rumored:false },
+        { date: "~1886", title: "Adopts the name “Windermere House”", body: "The growing hotel operation formally takes the name it still carries today.", source: "en.wikipedia.org", rumored:false },
+        { date: "1981", title: "Sold out of the Aitken family", body: "Ends over a century of continuous Aitken family ownership.", source: "en.wikipedia.org", rumored:false },
+        { date: "1996-02-27", title: "Destroyed by fire during a Hollywood film shoot", body: "A fire breaks out while the property is being used as a set for The Long Kiss Goodnight, destroying the building down to its stone veranda. The exact cause was never confirmed, though film lighting was initially suspected.", source: "en.wikipedia.org; contemporaneous production reporting", rumored:false },
+        { date: "1997", title: "Rebuilt and reopened", body: "The house, boathouse and marina are rebuilt to replicate the original design.", source: "en.wikipedia.org", rumored:false }
+      ]
+    },
+    {
+      id: "clevelands-house",
+      lake: "rosseau",
+      name: "Clevelands House",
+      lat: 45.1647, lng: -79.6482,
+      status: "verified",
+      era: "Transitional",
+      price: "Closed 2020, redevelopment pending",
+      sub: "Wallace Bay, Lake Rosseau — a name born from a printer's typo",
+      body: "Charles Minett took a Crown land grant on Wallace Bay in 1869 and opened a hotel there in 1883; he'd asked the printer to letter the first guest register “Cleeve Lands,” after his English birthplace, but the printer set “Clevelands” instead, and it was never corrected. The Minett family ran the resort until 1953. Billionaire developer Mitch Goldhar bought the 1,300-acre property in 2019, reportedly to block its existing zoning for 4,000 units; it closed to guests in June 2020 and has not reopened. A scaled-back redevelopment (48 cabins in phase one, reducing the allowed density to 1,700 units) is pending Ontario Land Tribunal approval as of this writing.",
+      source: "storeys.com · cottagelife.com",
+      timeline: [
+        { date: "1869", title: "Charles Minett takes a land grant on Wallace Bay", body: "The site that would become Clevelands House is first settled under a government land grant.", source: "cottagelife.com", rumored:false },
+        { date: "1883", title: "Hotel opens as “Clevelands House”", body: "Minett's intended name, “Cleeve Lands” (his English birthplace), is misprinted on the first guest register as “Clevelands” — the error stuck permanently.", source: "cottagelife.com", rumored:false },
+        { date: "1869–1953", title: "Minett family era", body: "The Minett family owns and operates the resort continuously for 84 years.", source: "cottagelife.com", rumored:false },
+        { date: "2019", title: "Purchased by Mitch Goldhar", body: "The Penguin Group of Companies founder buys the 1,300-acre property, reportedly to prevent development under its existing zoning rather than to build immediately.", source: "storeys.com", rumored:false },
+        { date: "2020-06", title: "Closes to guests", body: "Clevelands House stops taking bookings during the pandemic and has not reopened since.", source: "storeys.com", rumored:false },
+        { date: "pending", title: "Redevelopment awaiting approval", body: "A revised plan — 48 cabins in phase one, reducing allowed density from 4,000 to 1,700 units, designed by UK architect Neil McLaughlin — awaits Ontario Land Tribunal approval. Demolition timing is unknown.", source: "storeys.com", rumored:true }
+      ]
+    },
+    {
+      id: "jw-marriott-rosseau",
+      lake: "rosseau",
+      name: "JW Marriott The Rosseau",
+      lat: 45.1684, lng: -79.6412,
+      status: "verified",
+      era: "Est. 1894 (unconfirmed)",
+      price: "Canada's first JW Marriott",
+      sub: "Minett, Lake Rosseau — a 100-ft granite bluff",
+      body: "Now Canada's first JW Marriott-branded resort, the property traces its own account back to 1894, when John Frederick Pain and his wife Charlotte Tuck opened a lodge on the site catering to fishermen and farmers before the seasonal-vacationer trade took hold. That founding date comes from the resort's own materials — no independent record has been located yet to confirm it, so it's flagged here rather than stated as settled fact. Today it operates as a full-service luxury resort perched over Lake Rosseau.",
+      source: "marriott.com (property history) — unconfirmed independently",
+      timeline: [
+        { date: "1894", title: "Pain and Tuck open a lodge on the site", body: "John Frederick Pain and Charlotte Tuck are credited, per the resort's own history, with opening the original lodge that would grow into today's resort.", source: "marriott.com — not independently confirmed", rumored:true },
+        { date: "present", title: "Operates as JW Marriott The Rosseau Muskoka Resort & Spa", body: "Canada's first JW Marriott property, on a 100-foot granite bluff over Lake Rosseau in Minett.", source: "marriott.com", rumored:false }
+      ]
+    },
+    {
+      id: "kee-to-bala",
+      lake: "muskoka",
+      name: "The Kee to Bala",
+      lat: 45.0109, lng: -79.6144,
+      status: "verified",
+      era: "Est. 1929",
+      price: "Live Nation venue since 2023",
+      sub: "1012 Bala Falls Road — cottage country's most rockin' venue",
+      body: "Opened in 1929 as “Dunn's Pavilion” by Gerry Dunn, built into a dance hall the following year under the slogan “Where All of Muskoka Dances.” Sold twice through the 1960s, it was renamed “The Kee to Bala” in 1963 by new owner Ray Cockburn — a play on being the “key” to Muskoka entertainment — and turned into a rock-and-roll venue. Over the following decades it hosted acts from Duke Ellington and Louis Armstrong Jr. to Rush, Blue Rodeo and The Tragically Hip. Live Nation purchased the venue in 2023.",
+      source: "en.wikipedia.org — The KEE to Bala · cottagelife.com",
+      timeline: [
+        { date: "1929", title: "Opens as Dunn's Pavilion", body: "Gerry Dunn purchases and opens the pavilion on Lake Muskoka in Bala.", source: "en.wikipedia.org", rumored:false },
+        { date: "1930", title: "Built into a big-band dance hall", body: "Under the slogan “Where All of Muskoka Dances,” the pavilion becomes a destination dance hall.", source: "en.wikipedia.org", rumored:false },
+        { date: "1963", title: "Renamed “The Kee to Bala”", body: "New owner Ray Cockburn renames the venue and shifts it toward rock and roll.", source: "en.wikipedia.org", rumored:false },
+        { date: "1929–present", title: "Decades of major acts", body: "Performers over the venue's history span Duke Ellington, Guy Lombardo and Louis Armstrong Jr. to Rush, Arkells, Blue Rodeo and The Tragically Hip.", source: "en.wikipedia.org; cottagelife.com", rumored:false },
+        { date: "2023", title: "Purchased by Live Nation", body: "The historic venue is acquired by Live Nation.", source: "en.wikipedia.org", rumored:false }
+      ]
+    },
+    {
+      id: "barlochan-cottage",
+      lake: "muskoka",
+      name: "Barlochan Cottage",
+      lat: 45.0481, lng: -79.4978,
+      status: "verified",
+      era: "Filming location, 2025–26",
+      price: "The “Heated Rivalry” cottage",
+      sub: "Walker's Point, Barlochan Road — approximate location",
+      body: "A 2,500-square-foot four-season cottage designed by architect Trevor McIvor — himself a former OHL player who won the 1990 Memorial Cup with the Oshawa Generals — built as a prefabricated Douglas fir structure anchored to a central granite fireplace, its floor plates stepping down with the Canadian Shield site. The cottage is the real filming location for the Walker's Point scenes in Heated Rivalry, and opened for public Airbnb bookings starting March 2026. As with most short-term rental listings, Airbnb never publishes an exact civic address before booking. The pin here reflects Barlochan Road in the Walker's Point area, per a local correction — still a road-level approximation, not a confirmed parcel address.",
+      source: "trevormcivor.com (architect's portfolio) · torontolife.com · discovermuskoka.ca",
+      timeline: [
+        { date: "undated", title: "Designed by Trevor McIvor Architect Inc.", body: "Commissioned as a four-season retreat; the prefabricated Douglas fir design is shaped around the site's granite topography.", source: "trevormcivor.com", rumored:false },
+        { date: "2025", title: "Filming location for Heated Rivalry", body: "Barlochan Cottage serves as the Walker's Point cottage in the Paramount+/Crave series' season finale, featuring the Shane Hollander and Ilya Rozanov storyline.", source: "torontolife.com; cottagelife.com", rumored:false },
+        { date: "2026-03", title: "Opens for public Airbnb bookings", body: "Weekend stays became bookable starting March 3, 2026, with summer availability opening June 1.", source: "torontolife.com; blogto.com", rumored:false },
+        { date: "2026-08", title: "Location refined to Barlochan Road", body: "Pin moved from an approximate tourism-listing placement to Barlochan Road in the Walker's Point area, per local knowledge. Still a road-level approximation — no confirmed parcel address.", source: "local knowledge — unconfirmed by a published record", rumored:true }
+      ]
+    },
+    {
+      id: "rms-segwun",
+      lake: "muskoka",
+      name: "RMS Segwun",
+      lat: 44.9206, lng: -79.3910,
+      status: "verified",
+      era: "Built 1887",
+      price: "Oldest operating steamship in N. America",
+      sub: "Homeported at Muskoka Wharf, Gravenhurst",
+      body: "Built in Scotland and assembled at Gravenhurst in 1887 as the SS Nipissing, the ship served Muskoka's lakes until 1914, then returned after a decade-long layup as a twin-propeller steamer renamed Segwun in 1925. Its passenger capacity was cut from 243 to 100 after the 1949 SS Noronic fire prompted new marine fire-safety rules. Restored between 1972 and 1981, Segwun remains the oldest operating steam-driven vessel in North America and one of only three ships in the world still carrying Royal Mail Ship status — the only steamer among them. Canada Post issued a 36-cent stamp marking its centennial in 1987. It's homeported at Muskoka Wharf alongside its modern running mate, Wenonah II.",
+      source: "en.wikipedia.org — RMS Segwun",
+      timeline: [
+        { date: "1887", title: "Built as SS Nipissing", body: "Assembled at Gravenhurst after construction on Scotland's River Clyde; enters service on Lake Muskoka.", source: "en.wikipedia.org", rumored:false },
+        { date: "1914", title: "Original service ends", body: "SS Nipissing is taken out of service after 27 years.", source: "en.wikipedia.org", rumored:false },
+        { date: "1925", title: "Rebuilt and renamed Segwun", body: "Converted from a paddle-wheeler to a twin-propeller steamer and relaunched under its current name.", source: "en.wikipedia.org", rumored:false },
+        { date: "1949", title: "Passenger capacity cut after the SS Noronic fire", body: "New fire-safety regulations, prompted by the fatal Noronic fire, reduce Segwun's occupancy certificate from 243 to 100 passengers.", source: "en.wikipedia.org", rumored:false },
+        { date: "1972–1981", title: "Restored, returns to service", body: "A near-decade restoration effort returns Segwun to service on June 27, 1981.", source: "en.wikipedia.org", rumored:false },
+        { date: "1987", title: "Centennial marked by Canada Post", body: "Canada Post issues a 36-cent stamp honouring the ship's 100th year.", source: "en.wikipedia.org", rumored:false }
+      ]
+    },
+    {
+      id: "beaumaris",
+      lake: "muskoka",
+      name: "Beaumaris",
+      lat: 45.0717, lng: -79.4933,
+      status: "verified",
+      era: "Settled 1873",
+      price: "Former hotel site, active yacht club",
+      sub: "Tondern Island, Lake Muskoka",
+      body: "Edward Prowse and John Harry Willmott purchased Tondern Island for $1,560 in 1873 and named the settlement Beaumaris, after the town in Wales where they'd vacationed. Prowse opened the Beaumaris Hotel in 1883, a 200-guest, three-story property with a 220-foot verandah that became a hub for Muskoka's regatta circuit; it burned down on July 21, 1945, in a fire a court later found was arson. The Beaumaris Yacht Club, founded around 1912 by U.S. Congressman James Francis Burke, still operates today. The community's seasonal residents have included polo player and aviator Tommy Hitchcock Jr. and Gulf Oil co-founder William Larimer Mellon Sr.",
+      source: "en.wikipedia.org — Beaumaris, Ontario",
+      timeline: [
+        { date: "1873", title: "Prowse and Willmott purchase Tondern Island", body: "The pair buy the island for $1,560 and divide it, naming the settlement after Beaumaris, Wales.", source: "en.wikipedia.org", rumored:false },
+        { date: "1883", title: "Beaumaris Hotel opens", body: "Edward Prowse transforms his island house into a 200-guest hotel with lawn tennis, a dance hall, billiards and bowling.", source: "en.wikipedia.org", rumored:false },
+        { date: "1912", title: "Beaumaris Yacht Club founded", body: "U.S. Congressman James Francis Burke starts the club to foster sailing among the summer community's children.", source: "en.wikipedia.org", rumored:false },
+        { date: "1945-07-21", title: "Beaumaris Hotel destroyed by arson", body: "The hotel burns down; Edward John Van Buren later pleads guilty to arson and is sentenced to two years.", source: "en.wikipedia.org", rumored:false }
+      ]
+    }
+  ];
+
+  // ---- map setup ----
+  const LAKES = {
+    joseph:  { label: 'Lake Joseph',  center: [45.166, -79.72], zoom: 12 },
+    rosseau: { label: 'Lake Rosseau', center: [45.155, -79.60], zoom: 12 },
+    muskoka: { label: 'Lake Muskoka', center: [44.99, -79.50],  zoom: 10 }
+  };
+  let activeLake = null;
+
+  const map = L.map('map', { zoomControl:false, attributionControl:true });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 18
+  }).addTo(map);
+  const markersLayer = L.layerGroup().addTo(map);
+  map.fitBounds(L.latLngBounds(properties.map(p => [p.lat, p.lng])), { padding: [60, 60] });
+
+  const drawer = document.getElementById('drawer');
+  const drawerContent = document.getElementById('drawerContent');
+  document.getElementById('drawerClose').onclick = () => drawer.classList.remove('open');
+
+  function esc(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // contributor-level governance: hiding a source hides all their content site-wide
+  async function loadHiddenContributors(){
+    try{
+      const res = await window.storage.get('hidden_contributors', true);
+      return res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ return []; }
+  }
+  async function saveHiddenContributors(list){
+    try{ await window.storage.set('hidden_contributors', JSON.stringify(list), true); }
+    catch(e){ console.error(e); }
+  }
+
+  function renderMedia(items, hiddenContributors){
+    if(!items || !items.length) return '';
+    // group note: which contributors appear here
+    const contributors = [...new Set(items.map(m => m.contributor).filter(Boolean))];
+    const barHtml = contributors.map(c => {
+      const isHidden = hiddenContributors.includes(c);
+      const sample = items.find(m => m.contributor === c);
+      return `<div class="contrib-bar">
+        <span class="contrib-name">Photos by <b>${esc(sample.credit)}</b></span>
+        <button class="contrib-toggle" data-contrib="${esc(c)}">${isHidden ? 'Show' : 'Hide'} this source</button>
+      </div>`;
+    }).join('');
+
+    const cardsHtml = items.map(m => {
+      if(m.contributor && hiddenContributors.includes(m.contributor)){
+        return `<div class="contrib-hidden-note">Content from ${esc(m.credit)} is hidden. Use “Show this source” above to restore.</div>`;
+      }
+      const isInstagram = (m.url||'').includes('instagram.com');
+      const license = m.licenseNote ? `<div class="media-license">${esc(m.licenseNote)}</div>` : '';
+      const flag = m.confirmed === false
+        ? `<div class="media-flag">Verify this post matches this property</div>` : '';
+      if(m.tier === 'embed' && isInstagram && m.url){
+        return `<div class="media-embed">
+          <blockquote class="instagram-media" data-instgrm-permalink="${esc(m.url)}" data-instgrm-version="14" style="width:100%;"></blockquote>
+        </div>${flag}${license}`;
+      }
+      // blog post / external source → attributed link card
+      return `<a class="media-fallback" href="${esc(m.url||m.link||'#')}" target="_blank" rel="noopener">
+        <div class="media-caption">${esc(m.caption||'')}</div>
+        <div class="media-credit">© ${esc(m.credit||'')} — view source ↗</div>
+      </a>${flag}${license}`;
+    }).join('');
+
+    return barHtml + cardsHtml;
+  }
+
+  function processInstagramEmbeds(){
+    if(window.instgrm && window.instgrm.Embeds){
+      window.instgrm.Embeds.process();
+    }
+  }
+
+  function renderTimeline(items){
+    if(!items || !items.length) return '<p class="empty-note">No dated events recorded yet.</p>';
+    return `<div class="timeline">${items.map(t => `
+      <div class="tl-item ${t.rumored ? 'rumored':''}">
+        <div class="tl-date">${esc(t.date)}</div>
+        <div class="tl-title">${esc(t.title)}</div>
+        <div class="tl-body">${esc(t.body)}</div>
+        <div class="tl-source">${t.rumored ? 'NO SOURCE ATTACHED — ' : 'SOURCE — '}${esc(t.source)}</div>
+      </div>`).join('')}</div>`;
+  }
+
+  // demo seed stories to illustrate ranking (only for elsinore, only if empty)
+  const SEED_STORIES = {
+    "elsinore-island": [
+      { id:"seed_e1", author:"local historian", type:"Story", date:"1970s", title:"The regattas the Grands hosted here", body:"Detailed recollection of the summer sailing races the family ran off the west point through the 70s and 80s, with the trophy still reportedly in the boathouse.", source:"personal recollection + family photos", up:28, down:1, created: new Date(Date.now()-1000*60*60*200).toISOString() },
+      { id:"seed_e2", author:"a passing boater", type:"Story", date:"undated", title:"There's supposedly a hidden root cellar", body:"Heard from a caretaker that the original 1800s cabin had a stone cellar dug into the granite that's still under the newer cottage. Fun if true, no proof.", source:"secondhand, unverified", up:47, down:39, created: new Date(Date.now()-1000*60*60*400).toISOString() },
+      { id:"seed_e3", author:"new member", type:"Story", date:"2009", title:"I was at the wedding — here's what the island looked like", body:"Firsthand account of the 2009 Grand wedding, the tented point, and the boat shuttle from the mainland. Matches the obituary detail exactly.", source:"firsthand attendee", up:6, down:0, created: new Date(Date.now()-1000*60*60*5).toISOString() }
+    ]
+  };
+  async function loadSubmissions(propId){
+    try{
+      const res = await window.storage.get('submissions:' + propId, true);
+      if(res && res.value) return JSON.parse(res.value);
+      if(SEED_STORIES[propId]){
+        await window.storage.set('submissions:' + propId, JSON.stringify(SEED_STORIES[propId]), true);
+        return SEED_STORIES[propId];
+      }
+      return [];
+    }catch(e){ return []; }
+  }
+  async function saveSubmissions(propId, list){
+    try{ await window.storage.set('submissions:' + propId, JSON.stringify(list), true); }
+    catch(e){ console.error('save failed', e); }
+  }
+  async function loadMyVotes(propId){
+    try{
+      const res = await window.storage.get('myvotes:' + propId, false);
+      return res && res.value ? JSON.parse(res.value) : {};
+    }catch(e){ return {}; }
+  }
+  async function saveMyVotes(propId, votes){
+    try{ await window.storage.set('myvotes:' + propId, JSON.stringify(votes), false); }
+    catch(e){ console.error('save failed', e); }
+  }
+
+  // ---- image handling: downscale client-side so submissions stay small ----
+  // NOTE: prototype stores base64 in key-value storage. Production must use
+  // object storage (S3/R2) with only a URL reference in the database.
+  function processImage(file, maxDim = 1000, quality = 0.72){
+    return new Promise((resolve, reject) => {
+      if(!file) return resolve(null);
+      if(!file.type.startsWith('image/')) return reject(new Error('Not an image file.'));
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Could not read that file.'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Could not decode that image.'));
+        img.onload = () => {
+          let { width, height } = img;
+          if(width > maxDim || height > maxDim){
+            const scale = maxDim / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          if(dataUrl.length > 3_500_000) return reject(new Error('Image too large even after resizing — try a smaller one.'));
+          resolve(dataUrl);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ---- ranking: Wilson lower-bound (quality) × recency lift (visibility window) ----
+  function wilsonScore(up, down){
+    const n = (up||0) + (down||0);
+    if(n === 0) return 0;
+    const z = 1.96, p = (up||0) / n;
+    return (p + z*z/(2*n) - z*Math.sqrt((p*(1-p) + z*z/(4*n))/n)) / (1 + z*z/n);
+  }
+  function recencyMultiplier(createdISO){
+    if(!createdISO) return 1;
+    const ageHrs = (Date.now() - new Date(createdISO).getTime()) / 36e5;
+    // gentle lift that fades to zero over ~72h, max +40% for brand-new posts
+    return 1 + Math.max(0, (72 - ageHrs)) / 72 * 0.4;
+  }
+  function rankScore(sub){
+    return wilsonScore(sub.up, sub.down) * recencyMultiplier(sub.created);
+  }
+  function sortByRank(list){
+    return list.sort((a,b) => rankScore(b) - rankScore(a));
+  }
+
+  function renderCommunityItem(sub, propId, myVote, rankIndex){
+    const upActive = myVote === 'up' ? 'active-up' : '';
+    const downActive = myVote === 'down' ? 'active-down' : '';
+    const net = (sub.up||0) - (sub.down||0);
+    const ageHrs = sub.created ? (Date.now() - new Date(sub.created).getTime())/36e5 : 999;
+    const fresh = ageHrs < 72;
+    return `
+      <div class="community-item" data-sub-id="${esc(sub.id)}">
+        <div class="ci-layout">
+          <div class="vote-col">
+            <button class="vote-btn ${upActive}" data-dir="up" data-prop="${esc(propId)}" data-sub="${esc(sub.id)}" aria-label="upvote">▲</button>
+            <span class="vote-score">${net}</span>
+            <button class="vote-btn ${downActive}" data-dir="down" data-prop="${esc(propId)}" data-sub="${esc(sub.id)}" aria-label="downvote">▼</button>
+          </div>
+          <div class="ci-main">
+            <div class="ci-rankline">
+              <span class="ci-rank">#${rankIndex+1}</span>
+              <span class="ci-tag">${esc(sub.type)}</span>
+              ${fresh ? '<span class="ci-fresh">new · in visibility window</span>' : ''}
+            </div>
+            <div class="ci-title">${esc(sub.title)}</div>
+            <div class="ci-body">${esc(sub.body)}</div>
+            ${sub.image ? `<img class="ci-image" src="${sub.image}" alt="Photo attached by ${esc(sub.author||'a member')}" loading="lazy">` : ''}
+            ${sub.source ? `<span class="ci-source">SOURCE — ${esc(sub.source)}</span>` : '<span class="ci-source">NO SOURCE ATTACHED</span>'}
+            <div class="ci-meta">${esc(sub.author || 'Anonymous member')} · ${esc(sub.date || 'undated')} · ${(sub.up||0)}▲ ${(sub.down||0)}▼</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function renderCommunitySection(propId){
+    const subs = await loadSubmissions(propId);
+    const myVotes = await loadMyVotes(propId);
+    sortByRank(subs);
+    const listHtml = subs.length
+      ? subs.map((s,i) => renderCommunityItem(s, propId, myVotes[s.id], i)).join('')
+      : '<p class="empty-note">No stories yet — be the first to add to this record.</p>';
+    return `
+      <div class="community-block">
+      <div class="section-heading">Stories &amp; commentary <span class="count">${subs.length} post${subs.length===1?'':'s'}</span></div>
+      <button class="btn primary small full-width toggle-form-btn">+ Add a story, photo, or correction</button>
+      <div class="sub-form">
+        <label>Your name (shown publicly)</label>
+        <input type="text" data-field="author" placeholder="e.g. a local cottager">
+        <label>Type</label>
+        <select data-field="type">
+          <option>Story</option>
+          <option>Timeline event</option>
+          <option>Correction</option>
+          <option>Photo reference</option>
+        </select>
+        <label>Date (optional — approximate is fine)</label>
+        <input type="text" data-field="date" placeholder="e.g. 1985 or summer 1998">
+        <label>Title</label>
+        <input type="text" data-field="title" placeholder="Short headline for this entry">
+        <label>Details</label>
+        <textarea data-field="body" placeholder="What do you know? Be specific."></textarea>
+        <label>Source (optional — a link or citation strengthens this entry)</label>
+        <input type="text" data-field="source" placeholder="URL, book, or 'personal recollection'">
+        <label>Attach a photo (optional)</label>
+        <input type="file" data-field="image" accept="image/*">
+        <div class="img-preview-wrap"></div>
+        <label class="checkbox-label">
+          <input type="checkbox" data-field="rights">
+          <span>I took this photo, or I have permission to share it. I understand it will be publicly visible with my name attached.</span>
+        </label>
+        <div class="cta-row">
+          <button class="btn primary small submit-entry-btn">Add to the record</button>
+        </div>
+        <div class="form-msg"></div>
+      </div>
+      <div class="rank-note">Ranked by how strongly readers approve, not raw vote count — a tight 5▲/0▼ beats a noisy 20▲/18▼. New posts get a short visibility window so good stories can be found before they're buried.</div>
+      <div class="community-list">${listHtml}</div>
+      </div>
+    `;
+  }
+
+  async function wireCommunityHandlers(propId, container){
+    const block = container.querySelector('.community-block');
+    if(!block) return;
+    const toggleBtn = block.querySelector('.toggle-form-btn');
+    const form = block.querySelector('.sub-form');
+    if(toggleBtn) toggleBtn.onclick = () => form.classList.toggle('open');
+
+    // live image preview
+    let pendingImage = null;
+    const fileInput = block.querySelector('[data-field="image"]');
+    const previewWrap = block.querySelector('.img-preview-wrap');
+    if(fileInput){
+      fileInput.onchange = async () => {
+        const file = fileInput.files && fileInput.files[0];
+        pendingImage = null;
+        previewWrap.innerHTML = '';
+        if(!file) return;
+        previewWrap.innerHTML = '<div class="img-status">Processing image…</div>';
+        try{
+          pendingImage = await processImage(file);
+          previewWrap.innerHTML = `<img class="img-preview" src="${pendingImage}" alt="Preview of attached photo">
+            <button type="button" class="img-remove">Remove photo</button>`;
+          previewWrap.querySelector('.img-remove').onclick = () => {
+            pendingImage = null; fileInput.value = ''; previewWrap.innerHTML = '';
+          };
+        }catch(err){
+          previewWrap.innerHTML = `<div class="img-status err">${esc(err.message)}</div>`;
+          fileInput.value = '';
+        }
+      };
+    }
+
+    const submitBtn = block.querySelector('.submit-entry-btn');
+    if(submitBtn){
+      submitBtn.onclick = async () => {
+        const title = block.querySelector('[data-field="title"]').value.trim();
+        const body = block.querySelector('[data-field="body"]').value.trim();
+        const msg = block.querySelector('.form-msg');
+        if(!title || !body){
+          msg.textContent = 'Title and details are required.';
+          msg.className = 'form-msg err';
+          return;
+        }
+        if(pendingImage && !block.querySelector('[data-field="rights"]').checked){
+          msg.textContent = 'Please confirm you have the right to share this photo.';
+          msg.className = 'form-msg err';
+          return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Adding…';
+        try{
+          const list = await loadSubmissions(propId);
+          list.push({
+            id: 'sub_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+            author: block.querySelector('[data-field="author"]').value.trim() || 'Anonymous member',
+            type: block.querySelector('[data-field="type"]').value,
+            date: block.querySelector('[data-field="date"]').value.trim(),
+            title, body,
+            source: block.querySelector('[data-field="source"]').value.trim(),
+            image: pendingImage || null,
+            rightsAttested: pendingImage ? true : null,
+            up: 0, down: 0,
+            created: new Date().toISOString()
+          });
+          await saveSubmissions(propId, list);
+          msg.textContent = 'Added to the record. Thank you.';
+          msg.className = 'form-msg ok';
+          ['title','body','source','date'].forEach(f => block.querySelector(`[data-field="${f}"]`).value = '');
+          if(fileInput){ fileInput.value = ''; previewWrap.innerHTML = ''; }
+          block.querySelector('[data-field="rights"]').checked = false;
+          pendingImage = null;
+          const communityList = block.querySelector('.community-list');
+          const myVotes = await loadMyVotes(propId);
+          sortByRank(list);
+          communityList.innerHTML = list.map((s,i) => renderCommunityItem(s, propId, myVotes[s.id], i)).join('');
+          wireVoteButtons(propId, container);
+          block.querySelector('.section-heading .count').textContent = list.length + (list.length===1 ? ' post' : ' posts');
+        }catch(e){
+          msg.textContent = 'Something went wrong saving this — try again.';
+          msg.className = 'form-msg err';
+        }finally{
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Add to the record';
+        }
+      };
+    }
+    wireVoteButtons(propId, container);
+  }
+
+  function wireVoteButtons(propId, container){
+    const block = container.querySelector('.community-block');
+    if(!block) return;
+    block.querySelectorAll(`.vote-btn[data-prop="${propId}"]`).forEach(btn => {
+      btn.onclick = async () => {
+        const subId = btn.getAttribute('data-sub');
+        const dir = btn.getAttribute('data-dir');
+        const list = await loadSubmissions(propId);
+        const myVotes = await loadMyVotes(propId);
+        const item = list.find(s => s.id === subId);
+        if(!item) return;
+        const prev = myVotes[subId];
+        if(prev === dir){
+          // toggle off
+          item[dir] = Math.max(0, (item[dir]||0) - 1);
+          delete myVotes[subId];
+        } else {
+          if(prev){ item[prev] = Math.max(0, (item[prev]||0) - 1); }
+          item[dir] = (item[dir]||0) + 1;
+          myVotes[subId] = dir;
+        }
+        await saveSubmissions(propId, list);
+        await saveMyVotes(propId, myVotes);
+        const communityList = block.querySelector('.community-list');
+        sortByRank(list);
+        communityList.innerHTML = list.map((s,i) => renderCommunityItem(s, propId, myVotes[s.id], i)).join('');
+        wireVoteButtons(propId, container);
+      };
+    });
+  }
+
+  async function openDossier(p){
+    const rumored = p.status === 'rumored';
+    const hidden = await loadHiddenContributors();
+    drawerContent.innerHTML = `
+      <div class="eyebrow ${rumored ? 'rumored' : ''}"><span class="dot"></span>${rumored ? 'No source attached' : 'Published source attached'}</div>
+      <h1>${esc(p.name)}</h1>
+      <div class="sub">${esc(p.sub)}</div>
+      <button class="btn ghost small full-width view-full-btn" data-prop-id="${esc(p.id)}">View Full Property →</button>
+      <div class="stat-row">
+        <div class="stat"><label>Era / Status</label><span>${esc(p.era)}</span></div>
+        <div class="stat"><label>Figure</label><span>${esc(p.price)}</span></div>
+      </div>
+      <p class="body">${esc(p.body)}</p>
+      <div class="source-tag">SOURCE — ${esc(p.source)}</div>
+
+      ${p.media && p.media.length ? `<div class="section-heading">Photos <span class="count">${p.media.length} image${p.media.length===1?'':'s'}</span></div><div class="media-section">${renderMedia(p.media, hidden)}</div>` : ''}
+
+      <div class="community-section-mount">Loading stories…</div>
+
+      <details class="timeline-details">
+        <summary class="section-heading timeline-summary">
+          <span>Timeline <span class="count">${p.timeline ? p.timeline.length : 0} dated event${(p.timeline && p.timeline.length===1)?'':'s'}</span></span>
+          <span class="chev">▾</span>
+        </summary>
+        ${renderTimeline(p.timeline)}
+      </details>
+    `;
+    drawer.classList.add('open');
+    const viewFullBtn = drawerContent.querySelector('.view-full-btn');
+    if(viewFullBtn) viewFullBtn.onclick = () => { location.hash = '#/property/' + p.id; };
+    if(p.media && p.media.length){
+      wireContribToggles(p, drawerContent);
+      setTimeout(processInstagramEmbeds, 200);
+    }
+    const communityHtml = await renderCommunitySection(p.id);
+    drawerContent.querySelector('.community-section-mount').innerHTML = communityHtml;
+    wireCommunityHandlers(p.id, drawerContent);
+  }
+
+  function wireContribToggles(p, container){
+    const mediaSection = container.querySelector('.media-section');
+    if(!mediaSection) return;
+    mediaSection.querySelectorAll('.contrib-toggle').forEach(btn => {
+      btn.onclick = async () => {
+        const contrib = btn.getAttribute('data-contrib');
+        const hidden = await loadHiddenContributors();
+        const idx = hidden.indexOf(contrib);
+        if(idx >= 0) hidden.splice(idx, 1); else hidden.push(contrib);
+        await saveHiddenContributors(hidden);
+        mediaSection.innerHTML = renderMedia(p.media, hidden);
+        wireContribToggles(p, container);
+        setTimeout(processInstagramEmbeds, 200);
+      };
+    });
+  }
+
+  function renderAllMarkers(){
+    properties.forEach(p => {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="display:flex;flex-direction:column;align-items:center;"><div class="pin ${p.status === 'rumored' ? 'rumored' : ''}"></div></div>`,
+        iconSize: [16,16], iconAnchor: [8,8]
+      });
+      const marker = L.marker([p.lat, p.lng], { icon }).addTo(markersLayer);
+      marker.on('click', () => openDossier(p));
+
+      const label = L.divIcon({
+        className: '',
+        html: `<div class="pin-label">${esc(p.name)}</div>`,
+        iconSize: [140, 20], iconAnchor: [70, -6]
+      });
+      L.marker([p.lat, p.lng], { icon: label, interactive:false }).addTo(markersLayer);
+    });
+  }
+
+  // Lake chips pan/zoom the map to that lake — they no longer filter which pins
+  // are shown. Every property from all 3 lakes is always rendered and clickable;
+  // panning/zooming the map is just how you reveal a particular area of it.
+  function updateIntroCopy(lakeId){
+    const introHeading = document.getElementById('introHeading');
+    if(introHeading) introHeading.textContent = lakeId ? `${LAKES[lakeId].label}, Muskoka` : `Lake Joseph, Rosseau & Muskoka`;
+  }
+
+  function switchLake(lakeId){
+    if(!LAKES[lakeId]) return;
+    activeLake = lakeId;
+    document.querySelectorAll('.lake-chip').forEach(btn =>
+      btn.classList.toggle('active', btn.dataset.lake === lakeId));
+    map.setView(LAKES[lakeId].center, LAKES[lakeId].zoom);
+    drawer.classList.remove('open');
+    updateIntroCopy(lakeId);
+  }
+
+  document.querySelectorAll('.lake-chip').forEach(btn => {
+    btn.onclick = () => switchLake(btn.dataset.lake);
+  });
+
+  renderAllMarkers();
+  const introEyebrowEl = document.getElementById('introEyebrow');
+  if(introEyebrowEl) introEyebrowEl.innerHTML = `<span class="dot"></span>Seed collection · ${properties.length} pins across the Big 3`;
+  updateIntroCopy(null);
+
+  // ---- full property article page (Wikipedia-style) ----
+
+  function haversineKm(lat1, lng1, lat2, lng2){
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function nearbyProperties(p, count = 4){
+    return properties
+      .filter(x => x.id !== p.id && x.lake === p.lake)
+      .map(x => ({ p: x, dist: haversineKm(p.lat, p.lng, x.lat, x.lng) }))
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, count);
+  }
+
+  // Prototype-only: flattens every distinct source string touching this property into one
+  // numbered list. Production has a proper per-fact `sources` join table (see HANDOFF.md §3) —
+  // this is not a redesign of that model, just a readable view over today's plain-string sources.
+  function collectReferences(p){
+    const seen = new Set();
+    const refs = [];
+    const add = (src) => {
+      const s = (src || '').trim();
+      if(!s || seen.has(s)) return;
+      seen.add(s);
+      refs.push(s);
+    };
+    add(p.source);
+    (p.timeline || []).forEach(t => add(t.source));
+    (p.media || []).forEach(m => { add(m.credit); if(m.licenseNote) add(m.licenseNote); });
+    return refs;
+  }
+
+  // Infobox hero photo: only for link-tier items, rendered as a plain card. Instagram embed-tier
+  // items are skipped here so the widget isn't instantiated twice (once here, once in Photos).
+  function renderInfoboxHero(p, hidden){
+    if(!p.media || !p.media.length) return '';
+    const first = p.media[0];
+    if(first.contributor && hidden.includes(first.contributor)) return '';
+    const isInstagram = (first.url || '').includes('instagram.com');
+    if(first.tier === 'embed' && isInstagram) return '';
+    return `<a class="media-fallback infobox-hero" href="${esc(first.url || first.link || '#')}" target="_blank" rel="noopener">
+      <div class="media-caption">${esc(first.caption || '')}</div>
+      <div class="media-credit">© ${esc(first.credit || '')} — view source ↗</div>
+    </a>`;
+  }
+
+  function buildTOC(sections){
+    return `<div class="toc-title">Contents</div><ul>${sections.map(s => `<li><a href="#${s.id}">${esc(s.label)}</a></li>`).join('')}</ul>`;
+  }
+
+  async function renderFullPage(p){
+    const rumored = p.status === 'rumored';
+    const hidden = await loadHiddenContributors();
+    const hasMedia = p.media && p.media.length;
+    const hasTimeline = p.timeline && p.timeline.length;
+    const refs = collectReferences(p);
+    const nearby = nearbyProperties(p);
+
+    const sections = [
+      { id: 'overview', label: 'Overview' },
+      hasTimeline ? { id: 'timeline', label: 'History & Timeline' } : null,
+      hasMedia ? { id: 'photos', label: 'Photos' } : null,
+      { id: 'stories', label: 'Stories & Commentary' },
+      refs.length ? { id: 'references', label: 'References' } : null,
+      nearby.length ? { id: 'nearby', label: 'Nearby Properties' } : null
+    ].filter(Boolean);
+
+    articleView.innerHTML = `
+      <div class="article-masthead">
+        <button class="article-back-btn">← Back to map</button>
+        <div class="article-breadcrumb">Muskoka Atlas <span class="crumb-sep">›</span> ${esc(LAKES[p.lake].label)} <span class="crumb-sep">›</span> ${esc(p.name)}</div>
+      </div>
+      <div class="article-body">
+        <div class="article-main">
+          <div class="eyebrow ${rumored ? 'rumored' : ''}"><span class="dot"></span>${rumored ? 'No source attached' : 'Published source attached'}</div>
+          <h1 class="article-title">${esc(p.name)}</h1>
+          <div class="sub article-subhead">${esc(p.sub)}</div>
+
+          <details class="toc-mobile">
+            <summary>Contents <span class="chev">▾</span></summary>
+            <div class="toc">${buildTOC(sections)}</div>
+          </details>
+
+          <div class="article-section" id="overview">
+            <p class="body">${esc(p.body)}</p>
+            <div class="source-tag">SOURCE — ${esc(p.source)}</div>
+          </div>
+
+          ${hasTimeline ? `<div class="article-section" id="timeline">
+            <div class="section-heading">History &amp; Timeline <span class="count">${p.timeline.length} dated event${p.timeline.length===1?'':'s'}</span></div>
+            ${renderTimeline(p.timeline)}
+          </div>` : ''}
+
+          ${hasMedia ? `<div class="article-section" id="photos">
+            <div class="section-heading">Photos <span class="count">${p.media.length} image${p.media.length===1?'':'s'}</span></div>
+            <div class="media-section media-grid">${renderMedia(p.media, hidden)}</div>
+          </div>` : ''}
+
+          <div class="article-section" id="stories">
+            <div class="community-section-mount">Loading stories…</div>
+          </div>
+
+          ${refs.length ? `<div class="article-section" id="references">
+            <div class="section-heading">References</div>
+            <ol class="ref-list">${refs.map(r => `<li>${esc(r)}</li>`).join('')}</ol>
+          </div>` : ''}
+
+          ${nearby.length ? `<div class="article-section" id="nearby">
+            <div class="section-heading">Nearby Properties</div>
+            <div class="related-grid">${nearby.map(n => `
+              <a class="related-card" href="#/property/${esc(n.p.id)}">
+                <div class="related-name">${esc(n.p.name)}</div>
+                <div class="related-dist">${n.dist.toFixed(1)} km away</div>
+              </a>`).join('')}</div>
+          </div>` : ''}
+
+          <div class="article-footer-note">Muskoka Atlas is a crowdsourced record, not a claim of fact — every entry shows where its information came from, and readers are encouraged to check the source directly.</div>
+        </div>
+        <aside class="article-aside">
+          <nav class="toc toc-desktop">${buildTOC(sections)}</nav>
+          <div class="infobox">
+            ${renderInfoboxHero(p, hidden)}
+            <div class="infobox-row"><label>Lake</label><span>${esc(LAKES[p.lake].label)}</span></div>
+            <div class="infobox-row"><label>Era / Status</label><span>${esc(p.era)}</span></div>
+            <div class="infobox-row"><label>Figure</label><span>${esc(p.price)}</span></div>
+            <div class="infobox-row"><label>Coordinates</label><span>${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</span></div>
+            <button class="btn ghost small full-width view-on-map-btn">View on map</button>
+          </div>
+        </aside>
+      </div>
+    `;
+
+    articleView.querySelector('.article-back-btn').onclick = () => { location.hash = '#/map/' + p.id; };
+    articleView.querySelector('.view-on-map-btn').onclick = () => { location.hash = '#/map/' + p.id; };
+
+    if(hasMedia){
+      wireContribToggles(p, articleView);
+      setTimeout(processInstagramEmbeds, 200);
+    }
+    const communityHtml = await renderCommunitySection(p.id);
+    articleView.querySelector('.community-section-mount').innerHTML = communityHtml;
+    wireCommunityHandlers(p.id, articleView);
+
+    articleView.scrollTop = 0;
+  }
+
+  const articleView = document.getElementById('articleView');
+  const mapChrome = [document.getElementById('map'), document.querySelector('.vignette'), document.querySelector('.topbar'), document.querySelector('.intro'), document.querySelector('.legend')];
+
+  function showMapView(focusId){
+    articleView.style.display = 'none';
+    mapChrome.forEach(el => { if(el) el.style.display = ''; });
+    map.invalidateSize();
+    if(focusId){
+      const p = properties.find(x => x.id === focusId);
+      if(p){
+        if(p.lake !== activeLake) switchLake(p.lake);
+        map.setView([p.lat, p.lng], 14);
+        openDossier(p);
+      }
+    }
+  }
+
+  function showArticleView(p){
+    mapChrome.forEach(el => { if(el) el.style.display = 'none'; });
+    drawer.classList.remove('open');
+    articleView.style.display = 'block';
+    renderFullPage(p);
+  }
+
+  function renderRoute(){
+    const propMatch = location.hash.match(/^#\/property\/([\w-]+)$/);
+    if(propMatch){
+      const p = properties.find(x => x.id === propMatch[1]);
+      if(p){ showArticleView(p); return; }
+    }
+    const mapMatch = location.hash.match(/^#\/map\/([\w-]+)$/);
+    if(mapMatch){ showMapView(mapMatch[1]); return; }
+    showMapView();
+  }
+  window.addEventListener('hashchange', renderRoute);
+  renderRoute();
+</script>
+
+<script async src="https://www.instagram.com/embed.js"></script>
+</body>
+</html>
