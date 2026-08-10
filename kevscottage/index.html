@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kev's Cottage Design — ASI Ventures</title>
+<meta name="description" content="A flagship goal: designing and building a Muskoka cottage for my kids to enjoy with their friends and into the remainder of their life.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23E4002B'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='18' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --accent: #E4002B;
+    --accent-hover: #C4002B;
+    --text-primary: #1a1a1a;
+    --text-secondary: #333;
+    --text-muted: #666;
+    --text-faint: #999;
+    --bg-off: #fafafa;
+    --bg-white: #ffffff;
+    --border-light: #f0f0f0;
+    --border-mid: #e0e0e0;
+    --border-soft: #f5f5f5;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-primary);
+    background: var(--bg-white);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .container {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  /* Header */
+  header {
+    padding: 28px 0;
+  }
+
+  .wordmark {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .wordmark span {
+    color: var(--accent);
+  }
+
+  .back-link {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: color 0.15s ease;
+  }
+
+  .back-link:hover {
+    color: var(--accent);
+  }
+
+  header .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Hero */
+  .hero {
+    background: var(--bg-off);
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    padding: 96px 0 104px;
+  }
+
+  .hero .section-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  .hero h1 {
+    font-size: clamp(32px, 5vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    max-width: 760px;
+    line-height: 1.25;
+  }
+
+  .hero p {
+    margin-top: 20px;
+    font-size: 18px;
+    color: var(--text-muted);
+    max-width: 640px;
+  }
+
+  /* Gallery */
+  section.block {
+    padding: 96px 0;
+  }
+
+  .section-heading {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 48px;
+  }
+
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+  }
+
+  .gallery-grid figure {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border-mid);
+    background: var(--bg-off);
+  }
+
+  .gallery-grid img {
+    display: block;
+    width: 100%;
+    height: 260px;
+    object-fit: cover;
+    transition: transform 0.2s ease;
+  }
+
+  .gallery-grid figure:hover img {
+    transform: scale(1.03);
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border-light);
+    padding: 32px 0;
+  }
+
+  footer p {
+    font-size: 13px;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    .container {
+      padding: 0 20px;
+    }
+
+    .hero {
+      padding: 72px 0 80px;
+    }
+
+    section.block {
+      padding: 64px 0;
+    }
+
+    .gallery-grid {
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .gallery-grid img {
+      height: 160px;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="container">
+      <a href="/" class="wordmark">ASI <span>Ventures</span></a>
+      <a href="/#projects" class="back-link">&#8592; Back to projects</a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <div class="section-label">Personal project</div>
+      <h1>Kev's Cottage Design</h1>
+      <p>Anyone who knows me well knows the cottage lifestyle — family, boating, sunsets, friends, memories — is near and dear to my heart. A flagship goal in my life is to design and build a Muskoka cottage for my kids to enjoy with their friends and into the remainder of their life.</p>
+    </div>
+  </section>
+
+  <section class="block" id="gallery">
+    <div class="container">
+      <h2 class="section-heading">Design concepts</h2>
+      <div class="gallery-grid">
+        <figure><img src="/images/kevscottage/concept-1.png" alt="Cottage design concept 1" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-2.png" alt="Cottage design concept 2" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-3.png" alt="Cottage design concept 3" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-4.png" alt="Cottage design concept 4" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-5.png" alt="Cottage design concept 5" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-6.png" alt="Cottage design concept 6" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-7.png" alt="Cottage design concept 7" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-8.png" alt="Cottage design concept 8" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-9.png" alt="Cottage design concept 9" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-10.png" alt="Cottage design concept 10" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-11.png" alt="Cottage design concept 11" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-12.png" alt="Cottage design concept 12" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-13.png" alt="Cottage design concept 13" loading="lazy"></figure>
+        <figure><img src="/images/kevscottage/concept-14.png" alt="Cottage design concept 14" loading="lazy"></figure>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 ASI Ventures.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
